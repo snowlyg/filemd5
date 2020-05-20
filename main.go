@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,21 +13,11 @@ import (
 	"strings"
 )
 
-var (
-	callApkMd5String      string
-	faceApkMd5String      string
-	inputApkMd5String     string
-	iptvApkMd5String      string
-	ttsApkMd5String       string
-	websocketApkMd5String string
-
-	callApkTimeString      int64
-	faceApkTimeString      int64
-	inputApkTimeString     int64
-	iptvApkTimeString      int64
-	ttsApkTimeString       int64
-	websocketApkTimeString int64
-)
+type Md5TimeString struct {
+	Name    string `json:"name"`
+	Hash    string `json:"hash"`
+	Version string `json:"version"`
+}
 
 func checkErrf(e error) {
 	if e != nil {
@@ -59,71 +50,44 @@ func getMd5(f *os.File) string {
 	//fmt.Printf("SHA-256: %X\n\n", sha256.Sum(nil))
 }
 
-func inDirArray(name string) bool {
-	dirs := []string{
-		"com.chindeo.bed.app",
-		"com.chindeo.launcher.app",
-		"com.chindeo.nursehost",
-		"com.ktcp.launcher",
-	}
-
-	for _, dir := range dirs {
-		if name == dir {
-			return true
-		}
-	}
-
-	return false
-}
-
-func main() {
-
-	path := GetCurPath()
-	files, err := ioutil.ReadDir(path)
-	if err != nil {
-		panic(err)
-	}
-
-	// 获取文件，并输出它们的名字
+func getMd5TimeStrings(files []os.FileInfo, mts map[string]*Md5TimeString) error {
 	for _, f := range files {
 		if !f.IsDir() {
-			file, err := os.Open(f.Name())
+			fullName := f.Name()
+			file, err := os.Open(fullName)
 			if err != nil {
-				log.Println(err)
-				return
+				return err
 			}
 
-			md5String := getMd5(file)
-			switch f.Name() {
-			case "call.apk":
-				callApkMd5String = md5String
-				callApkTimeString = f.ModTime().Unix()
-			case "face.apk":
-				faceApkMd5String = md5String
-				faceApkTimeString = f.ModTime().Unix()
-			case "input.apk":
-				inputApkMd5String = md5String
-				inputApkTimeString = f.ModTime().Unix()
-			case "iptv.apk":
-				iptvApkMd5String = md5String
-				iptvApkTimeString = f.ModTime().Unix()
-			case "tts.apk":
-				ttsApkMd5String = md5String
-				ttsApkTimeString = f.ModTime().Unix()
-			case "websocket.apk":
-				websocketApkMd5String = md5String
-				websocketApkTimeString = f.ModTime().Unix()
-			case "main.go":
-				continue
-			default:
-				log.Println(fmt.Sprintf("其他文件:%v", f.Name()))
-			}
+			getMd5TimeString(fullName, file, f, mts)
+
 			file.Close()
 		}
 	}
+	return nil
+}
+
+func getMd5TimeString(fullName string, file *os.File, f os.FileInfo, mts map[string]*Md5TimeString) {
+	names := strings.Split(fullName, ".")
+	if len(names) == 2 && names[1] == "apk" {
+		md5String := getMd5(file)
+		mt := new(Md5TimeString)
+		mt.Name = names[0]
+		mt.Hash = md5String
+		mt.Version = f.ModTime().Format("20060102150400")
+		mts[names[0]] = mt
+	}
+}
+
+func FileExist(path string) bool {
+	_, err := os.Lstat(path)
+	return !os.IsNotExist(err)
+}
+
+func createJsons(files []os.FileInfo, err error, path string, mts map[string]*Md5TimeString) {
 
 	for _, f := range files {
-		if f.IsDir() && inDirArray(f.Name()) {
+		if f.IsDir() {
 			file, _ := os.Open(f.Name())
 			err = os.Chdir(path)
 			checkErrf(err)
@@ -132,48 +96,110 @@ func main() {
 			checkErrf(err)
 
 			for _, s := range names {
+				var mmt []*Md5TimeString
 				if s.IsDir() {
 					continue
 				}
 
-				file, err := os.Open(f.Name() + "\\app.apk")
-				if err != nil {
-					log.Println(err)
-					continue
+				jsonPath := f.Name() + "\\app.json"
+				if FileExist(f.Name()+"\\app.apk") && FileExist(jsonPath) {
+					file, err := os.Open(f.Name() + "\\app.apk")
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					md5String := getMd5(file)
+					timeString := f.ModTime().Format("20060102150400")
+					file.Close()
+
+					appJson, _ := ioutil.ReadFile(jsonPath)
+
+					var jsondata interface{}
+					_ = json.Unmarshal(appJson, &jsondata)
+					jd, ok := jsondata.([]interface{})
+
+					if ok {
+						for k, v := range jd {
+							switch v2 := v.(type) {
+							case string:
+								fmt.Println(k, "is string", v2)
+							case int:
+								fmt.Println(k, "is int", v2)
+							case bool:
+								fmt.Println(k, "is bool", v2)
+							case []interface{}:
+								fmt.Println(k, "is an array:")
+								for i, iv := range v2 {
+									fmt.Println(i, iv)
+								}
+							case map[string]interface{}:
+								//fmt.Println(k, "is an map:")
+								var mt Md5TimeString
+								for i, iv := range v2 {
+									if i == "name" {
+										ivs, ok := iv.(string)
+										if ok {
+											mt.Name = ivs
+										}
+									} else if i == "hash" {
+										ivs, ok := iv.(string)
+										if ok {
+											mt.Hash = ivs
+										}
+									} else if i == "version" {
+										ivs, ok := iv.(string)
+										if ok {
+											mt.Version = ivs
+										}
+									}
+								}
+
+								// 赋值 app.apk
+								if mt.Name == "app" {
+									mt.Hash = md5String
+									mt.Version = timeString
+								}
+
+								// 赋值其他 apk
+								for name, item := range mts {
+									if mt.Name == name {
+										mt.Hash = item.Hash
+										mt.Version = item.Version
+									}
+								}
+
+								mmt = append(mmt, &mt)
+							default:
+								fmt.Println(k, "类型未知", v2)
+							}
+						}
+					}
+
+					data, _ := json.Marshal(mmt)
+					ioutil.WriteFile(jsonPath, data, 0)
 				}
-				md5String := getMd5(file)
-				file.Close()
-
-				appJson, err := os.OpenFile(f.Name()+"\\app.json", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0766)
-				if err != nil {
-					checkErrf(err)
-				}
-
-				var data string
-				switch f.Name() {
-				case "com.chindeo.bed.app":
-					comChindeoBedAppJson := "[{\"name\":\"app\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"tts\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"face\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"call\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"websocket\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"iptv\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"input\",\"hash\":\"%v\",\"version\":\"%d\"}]"
-					data = fmt.Sprintf(comChindeoBedAppJson, md5String, f.ModTime().Unix(), ttsApkMd5String, ttsApkTimeString, faceApkMd5String, faceApkTimeString, callApkMd5String, callApkTimeString, websocketApkMd5String, websocketApkTimeString, iptvApkMd5String, iptvApkTimeString, inputApkMd5String, inputApkTimeString)
-
-				case "com.chindeo.launcher.app":
-					comChindeoBedAppJson := "[{\"name\":\"app\",\"hash\":\"%v\",\"version\":\"%d\"}]"
-					data = fmt.Sprintf(comChindeoBedAppJson, md5String, f.ModTime().Unix())
-
-				case "com.chindeo.nursehost":
-					comChindeoBedAppJson := "[{\"name\":\"app\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"tts\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"call\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"websocket\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"input\",\"hash\":\"%v\",\"version\":\"%d\"}]"
-					data = fmt.Sprintf(comChindeoBedAppJson, md5String, f.ModTime().Unix(), ttsApkMd5String, ttsApkTimeString, callApkMd5String, callApkTimeString, websocketApkMd5String, websocketApkTimeString, inputApkMd5String, inputApkTimeString)
-
-				case "com.ktcp.launcher":
-					comChindeoBedAppJson := "[{\"name\":\"app\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"tts\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"face\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"input\",\"hash\":\"%v\",\"version\":\"%d\"},{\"name\":\"call\",\"hash\":\"%v\",\"version\":\"%d\"}]"
-					data = fmt.Sprintf(comChindeoBedAppJson, md5String, f.ModTime().Unix(), ttsApkMd5String, ttsApkTimeString, faceApkMd5String, faceApkTimeString, inputApkMd5String, inputApkTimeString, callApkMd5String, callApkTimeString)
-				default:
-					panic(fmt.Sprintf("错误目录:%v", f.Name()))
-				}
-
-				appJson.WriteString(data)
-
-				appJson.Close()
 			}
 		}
 	}
+
+}
+
+func main() {
+
+	mts := map[string]*Md5TimeString{}
+
+	path := GetCurPath()
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		panic(err)
+	}
+
+	// 获取文件，并输出它们的名字
+	err = getMd5TimeStrings(files, mts)
+	if err != nil {
+		panic(err)
+	}
+
+	//生成 .json 文件
+	createJsons(files, err, path, mts)
 }
