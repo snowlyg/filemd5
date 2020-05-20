@@ -87,7 +87,7 @@ func FileExist(path string) bool {
 func createJsons(files []os.FileInfo, err error, path string, mts map[string]*Md5TimeString) {
 
 	for _, f := range files {
-		if f.IsDir() {
+		if f.IsDir() && f.Name() != "com.chindeo.launcher.app" {
 			file, _ := os.Open(f.Name())
 			err = os.Chdir(path)
 			checkErrf(err)

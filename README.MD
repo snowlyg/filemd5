@@ -3,3 +3,5 @@
 针对指定目录结构和名称获取文件 MD5 值，并生成 json 文件
 
 不限制插件和目录，如果增加插件需要手动修改 json 文件
+
+过滤 com.chindeo.launcher.app 目录
