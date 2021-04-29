@@ -1,0 +1,43 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "go-md5 build",
+            "type": "shell",
+            "command": "go build -ldflags '-w -s'  -o ./cmd/go-md5 main.go",
+            "windows": {
+                "command": "go build -ldflags '-w -s'  -o ./cmd/go-md5.exe main.go"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "go-md5 test",
+            "type": "shell",
+            "command": "go test ./...",
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "go-md5 upx",
+            "type": "shell",
+            "dependsOn": [
+                "go-md5 build"
+            ],
+            "command": "./cmd/upx ./cmd/go-md5",
+            "windows": {
+                "command": "./cmd/upx.exe ./cmd/go-md5.exe"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}
