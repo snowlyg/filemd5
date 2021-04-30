@@ -1,5 +1,7 @@
-/main.exe
-/main_lin
-/main_mac
+*.exe
+*.apk
+*.json
+*.docx
+
 .idea/
-./data
+
