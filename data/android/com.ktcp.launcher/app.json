@@ -1,0 +1,7 @@
+[
+    {"name":"app","hash":"366A932A819806F577084CF432DCC937","version":"20210429171200"},
+    {"name":"tts","hash":"B5A65F49E4156665E1044A09E57C876B","version":"20191108174900"},
+    {"name":"face","hash":"9D6C59B11AD2631D6E34F915E65E68EA","version":"20210121143300"},
+    {"name":"input","hash":"7380448E9B40DEC4E839998CBA0BFEC7","version":"20200423160500"},
+    {"name":"call","hash":"C332F74197CFE06346B6D7F2A54234B8","version":"20210420094200"}
+]

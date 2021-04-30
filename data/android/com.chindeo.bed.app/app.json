@@ -1,0 +1,8 @@
+[
+{"name":"app","hash":"18","version":"71"},
+{"name":"tts","hash":"6","version":"1"},
+{"name":"face","hash":"8","version":"1"},
+{"name":"call","hash":"36","version":"1"},
+{"name":"websocket","hash":"80","version":"1"},
+{"name":"iptv","hash":"7","version":"1"}
+]
